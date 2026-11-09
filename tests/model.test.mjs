@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {starter,additions,testSet,predict,fit,evaluate,validateRows,dataset,parseDataset} from '../dist/model.mjs';
+test('narrow coverage masks failures on a held-out set; coverage repair fixes this designed exercise',()=>{const a=evaluate(fit(starter));const b=evaluate(fit([...starter,...additions]));assert.equal(a.correct,12);assert.equal(a.total,16);assert.equal(b.correct,16);assert.deepEqual(a.matrix,[[5,3],[1,7]]);assert.equal(testSet.length,16);});
+test('training accuracy does not establish held-out performance',()=>{assert.equal(evaluate(fit(starter),starter).correct,8);assert.equal(evaluate(fit(starter)).correct,12);});
+test('nearest neighbors are sorted, bounded and explain the vote',()=>{const p=predict(starter,.15,.16,3);assert.equal(p.label,0);assert.equal(p.share,1);assert.equal(p.neighbors.length,3);assert(p.neighbors[0].distance<=p.neighbors[1].distance);});
+test('class labels follow votes and not the known synthetic teaching rule',()=>{assert.equal(predict(starter,.12,.7,3).label,0);assert.equal(predict([...starter,...additions],.12,.7,3).label,1);});
+test('votes are not guaranteed probabilities',()=>{const p=predict([{x:0,y:0,label:0},{x:.1,y:0,label:1},{x:.2,y:0,label:1}],0,0,3);assert.equal(p.label,1);assert.equal(p.share,2/3);});
+test('fit clones examples and cannot mutate with draft data',()=>{const rows=structuredClone(starter),m=fit(rows);rows[0].label=1;assert.equal(m.rows[0].label,0);});
+test('dataset export/import round trips',()=>{assert.deepEqual(parseDataset(JSON.stringify(dataset(starter))),starter);});
+for(const value of [null,{},[],[null],Array(501).fill(starter[0]),[{x:0,y:0,label:0},{x:1,y:1,label:0}],[{x:-1,y:0,label:0},{x:1,y:1,label:1}],[{x:0,y:Infinity,label:0},{x:1,y:1,label:1}],[{x:0,y:0,label:'0'},{x:1,y:1,label:1}]])test('reject invalid examples '+JSON.stringify(value)?.slice(0,65),()=>assert.throws(()=>validateRows(value)));
+for(const text of ['null','{','{}',JSON.stringify({kind:'signal-garden-dataset',version:2,rows:starter}),'x'.repeat(100001)])test('reject invalid file '+text.slice(0,45),()=>assert.throws(()=>parseDataset(text)));
+test('query and k validation prevent invalid inference',()=>{for(const k of [0,2,7,NaN])assert.throws(()=>predict(starter,.5,.5,k));assert.throws(()=>predict(starter,NaN,0));assert.throws(()=>predict(starter,2,0));assert.throws(()=>fit(starter.slice(0,2),3));});
+test('identical distances resolve stably for repeatable reports',()=>assert.deepEqual(predict(starter,.5,.5),predict(starter,.5,.5)));
